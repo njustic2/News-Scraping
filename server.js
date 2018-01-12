@@ -29,8 +29,19 @@ app.use(express.static("public"));
 // Set mongoose to leverage built in JavaScript ES6 Promises
 // Connect to the Mongo DB
 mongoose.Promise = Promise;
-mongoose.connect("mongodb://localhost/week18Populater", {
-  useMongoClient: true
+// mongoose.connect("mongodb://localhost/week18Populater", {
+//   useMongoClient: true
+// });
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost/week18Populater";
+
+mongoose.connect(MONGODB_URI, function (err, res) {
+   if (err) {
+       console.log ('ERROR connecting to: ' + MONGODB_URI + '. ' + err);
+   } else {
+       console.log ('Succeeded connected to: ' + MONGODB_URI, {
+           useMongoClient: true
+       });
+   }
 });
 
 // Routes
@@ -38,34 +49,34 @@ mongoose.connect("mongodb://localhost/week18Populater", {
 // A GET route for scraping the echojs website
 app.get("/scrape", function(req, res) {
   // First, we grab the body of the html with request
-  axios.get("http://www.echojs.com/").then(function(response) {
+  axios.get("https://www.nytimes.com/").then(function(response) {
     // Then, we load that into cheerio and save it to $ for a shorthand selector
     var $ = cheerio.load(response.data);
-
+    const promises = [];
     // Now, we grab every h2 within an article tag, and do the following:
-    $("article h2").each(function(i, element) {
+    $(".second-column-region.region article").each(function(i, element) {
       // Save an empty result object
       var result = {};
 
       // Add the text and href of every link, and save them as properties of the result object
       result.title = $(this)
-        .children("a")
+        .find(".story-heading a")
         .text();
       result.link = $(this)
-        .children("a")
+        .find(".story-heading a")
         .attr("href");
+        console.log("results", result)
 
       // Create a new Article using the `result` object built from scraping
-      db.Article
-        .create(result)
-        .then(function(dbArticle) {
-          // If we were able to successfully scrape and save an Article, send a message to the client
-          res.send("Scrape Complete");
-        })
-        .catch(function(err) {
-          // If an error occurred, send it to the client
-          res.json(err);
-        });
+      if(result.title && result.link){
+        promises.push(db.Article.create(result));
+      }
+      
+        
+    });
+        Promise.all(promises)
+        .then(responses => {
+        res.redirect('/');
     });
   });
 });
